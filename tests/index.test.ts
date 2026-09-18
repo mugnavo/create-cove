@@ -316,6 +316,52 @@ describe("prepareTemplateFiles", () => {
       }),
     );
   });
+
+  it.each([
+    {
+      template: "default" as const,
+      appPath: [] as string[],
+    },
+    {
+      template: "monorepo" as const,
+      appPath: ["apps", "web"],
+    },
+  ])("updates database defaults for the $template template", async ({ template, appPath }) => {
+    const dir = await createTempDir();
+    const appDir = join(dir, ...appPath);
+
+    await mkdir(join(appDir, "src", "routes"), { recursive: true });
+    await writeFile(
+      join(appDir, ".env.schema"),
+      '# @example="postgresql://postgres:password@localhost:5432/cove"\nDATABASE_URL=\n',
+    );
+    await writeFile(
+      join(appDir, "playwright.config.ts"),
+      'const databaseUrl = "postgresql://postgres:password@localhost:5432/cove_e2e";\n',
+    );
+    await writeFile(
+      join(dir, "docker-compose.yml"),
+      "volumes:\n  - postgres_data_cove:/var/lib/postgresql\nenvironment:\n  - POSTGRES_DB=cove\n",
+    );
+    await writeFile(join(dir, "package.json"), '{"name":"template-app"}\n');
+    await writeFile(join(dir, "README.md"), "# template-app\n");
+    await writeFile(join(appDir, "src", "routes", "__root.tsx"), "export const Route = {};\n");
+
+    await prepareTemplateFiles(dir, template, "My.Cool-App");
+
+    await expect(readFile(join(dir, "docker-compose.yml"), "utf8")).resolves.toContain(
+      "postgres_data_my_cool_app",
+    );
+    await expect(readFile(join(dir, "docker-compose.yml"), "utf8")).resolves.toContain(
+      "POSTGRES_DB=my_cool_app",
+    );
+    await expect(readFile(join(appDir, ".env.schema"), "utf8")).resolves.toContain(
+      "localhost:5432/my_cool_app",
+    );
+    await expect(readFile(join(appDir, "playwright.config.ts"), "utf8")).resolves.toContain(
+      "localhost:5432/my_cool_app_e2e",
+    );
+  });
 });
 
 describe("template source metadata", () => {

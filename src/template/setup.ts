@@ -32,6 +32,16 @@ function resolveGeneratedProjectName(dir: string, projectName: string) {
   return basename(resolve(dir)) || "app";
 }
 
+function resolveDatabaseName(dir: string, projectName: string) {
+  const databaseName = resolveGeneratedProjectName(dir, projectName)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  // PostgreSQL identifiers are limited to 63 bytes; reserve room for `_e2e`.
+  return (databaseName || "app").slice(0, 59);
+}
+
 async function removeLicenseFile(dir: string) {
   await rm(join(dir, "LICENSE"), { force: true });
 }
@@ -80,6 +90,39 @@ async function updatePackageName(dir: string, projectName: string) {
 
   packageJson.name = resolveGeneratedProjectName(dir, projectName);
   await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
+
+async function replaceText(
+  filePath: string,
+  replacements: ReadonlyArray<readonly [string, string]>,
+) {
+  const contents = await readFile(filePath, "utf8");
+  const updatedContents = replacements.reduce(
+    (result, [searchValue, replacement]) => result.replaceAll(searchValue, replacement),
+    contents,
+  );
+
+  if (updatedContents !== contents) {
+    await writeFile(filePath, updatedContents);
+  }
+}
+
+async function updateDatabaseDefaults(dir: string, template: Template, projectName: string) {
+  const databaseName = resolveDatabaseName(dir, projectName);
+  const appDir = template === "default" ? dir : join(dir, "apps", "web");
+
+  await Promise.allSettled([
+    replaceText(join(dir, "docker-compose.yml"), [
+      ["postgres_data_cove", `postgres_data_${databaseName}`],
+      ["POSTGRES_DB=cove", `POSTGRES_DB=${databaseName}`],
+    ]),
+    replaceText(join(appDir, ".env.schema"), [
+      ["localhost:5432/cove", `localhost:5432/${databaseName}`],
+    ]),
+    replaceText(join(appDir, "playwright.config.ts"), [
+      ["localhost:5432/cove_e2e", `localhost:5432/${databaseName}_e2e`],
+    ]),
+  ]);
 }
 
 function parseTemplateMetadata(contents: string) {
@@ -246,6 +289,7 @@ export async function prepareTemplateFiles(
     removeLicenseFile(dir),
     copyEnvFiles(dir, template),
     updatePackageName(dir, projectName),
+    updateDatabaseDefaults(dir, template, projectName),
     updateTemplateMetadata(dir, template, templateCommitSha),
     updateReadme(dir, template, projectName),
     updateAppMetadata(dir, template, projectName),
