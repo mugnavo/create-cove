@@ -16,7 +16,7 @@ type MarkerReplacement = {
 
 function getReadmeDescription(template: Template, templateCommitSha?: string) {
   if (!templateCommitSha) {
-    return "This project was scaffolded with [`create-mugnavo`](https://github.com/mugnavo/create-mugnavo).";
+    return "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).";
   }
 
   const templateConfig = getTemplateConfig(template);
@@ -24,7 +24,7 @@ function getReadmeDescription(template: Template, templateCommitSha?: string) {
   const commitUrl = `${templateConfig.homeUrl}/tree/${templateCommitSha}`;
   const compareUrl = `${templateConfig.homeUrl}/compare/${templateCommitSha}...main`;
 
-  return `This project was scaffolded with \`create-mugnavo\` from commit [\`${shortCommitSha}\`](${commitUrl}). See the [template changelog](${compareUrl}) for newer changes.`;
+  return `This project was scaffolded with \`create-cove\` from commit [\`${shortCommitSha}\`](${commitUrl}). See the [template changelog](${compareUrl}) for newer changes.`;
 }
 
 function addCompareUrlToIssueWatchlist(
@@ -122,13 +122,26 @@ async function copyEnvFiles(dir: string, template: Template) {
   }
 }
 
-async function updatePackageName(dir: string, projectName: string) {
+async function updatePackageMetadata(
+  dir: string,
+  template: Template,
+  projectName: string,
+  templateCommitSha?: string,
+) {
   const packageJsonPath = join(dir, "package.json");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
     name?: string;
+    starterTemplate?: unknown;
   };
 
   packageJson.name = resolveGeneratedProjectName(dir, projectName);
+
+  if (templateCommitSha) {
+    packageJson.starterTemplate = {
+      source: getTemplateConfig(template).homeUrl,
+      revision: templateCommitSha,
+    };
+  }
 
   await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
@@ -233,7 +246,7 @@ async function updateAppMetadata(dir: string, template: Template, projectName: s
     },
     {
       marker: DESCRIPTION_MARKER,
-      replacementContent: `content: "A TanStack Start project scaffolded with create-mugnavo.",`,
+      replacementContent: `content: "A TanStack Start project scaffolded with create-cove.",`,
     },
   ]);
 }
@@ -247,7 +260,7 @@ export async function prepareTemplateFiles(
   await Promise.allSettled([
     removeLicenseFile(dir),
     copyEnvFiles(dir, template),
-    updatePackageName(dir, projectName),
+    updatePackageMetadata(dir, template, projectName, templateCommitSha),
     updateReadme(dir, template, projectName, templateCommitSha),
     updateAppMetadata(dir, template, projectName),
   ]);

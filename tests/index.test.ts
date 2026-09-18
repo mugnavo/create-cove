@@ -2,17 +2,22 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CliArgs } from "../src/cli/args";
 import { ensureDirectoryIsEmpty, resolveCliOptions, validateProjectName } from "../src/cli/prompts";
+import { getTemplateConfig } from "../src/template/config";
 import { prepareTemplateFiles } from "../src/template/setup";
+import {
+  resolveTemplateCommitSha,
+  resolveTemplateDownloadSource,
+} from "../src/template/source-metadata";
 
 const tempDirs: string[] = [];
 const originalCwd = process.cwd();
 
 async function createTempDir() {
-  const dir = await mkdtemp(join(tmpdir(), "create-mugnavo-"));
+  const dir = await mkdtemp(join(tmpdir(), "create-cove-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -102,7 +107,7 @@ describe("prepareTemplateFiles", () => {
       [
         "# my-app",
         "",
-        "This project was scaffolded with [`create-mugnavo`](https://github.com/mugnavo/create-mugnavo).",
+        "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).",
         "",
       ].join("\n"),
     );
@@ -149,7 +154,7 @@ describe("prepareTemplateFiles", () => {
       [
         `# ${directoryName}`,
         "",
-        "This project was scaffolded with [`create-mugnavo`](https://github.com/mugnavo/create-mugnavo).",
+        "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).",
         "",
       ].join("\n"),
     );
@@ -158,8 +163,43 @@ describe("prepareTemplateFiles", () => {
     );
   });
 
+  it("records the exact template revision when it is available", async () => {
+    const dir = await createTempDir();
+    const revision = "3ee0799e99d9f9fea67f430850bc7b15de32f556";
+
+    await mkdir(join(dir, "src", "routes"), { recursive: true });
+    await writeFile(join(dir, ".env.schema"), envSchema);
+    await writeFile(
+      join(dir, "package.json"),
+      '{"name":"template-app","generator":"create-cove"}\n',
+    );
+    await writeFile(join(dir, "README.md"), "# template-app\n");
+    await writeFile(
+      join(dir, "src", "routes", "__root.tsx"),
+      '// scaffold:title\ntitle: "template-app",\n',
+    );
+
+    await prepareTemplateFiles(dir, "default", "my-app", revision);
+
+    await expect(readFile(join(dir, "package.json"), "utf8")).resolves.toBe(
+      `${JSON.stringify(
+        {
+          name: "my-app",
+          generator: "create-cove",
+          starterTemplate: {
+            source: "https://github.com/mugnavo/cove",
+            revision,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+
   it("creates a cleaned local env file for the monorepo web app", async () => {
     const dir = await createTempDir();
+    const revision = "a60f578165b40710e2755ed757916b6ee605a919";
 
     await mkdir(join(dir, "apps", "web", "src", "routes"), { recursive: true });
     await writeFile(join(dir, "apps", "web", ".env.schema"), envSchema);
@@ -176,7 +216,7 @@ describe("prepareTemplateFiles", () => {
       ].join("\n"),
     );
 
-    await prepareTemplateFiles(dir, "monorepo", "my-app");
+    await prepareTemplateFiles(dir, "monorepo", "my-app", revision);
 
     await expect(readFile(join(dir, "apps", "web", ".env.local"), "utf8")).resolves.toBe(
       [
@@ -187,6 +227,56 @@ describe("prepareTemplateFiles", () => {
         "",
       ].join("\n"),
     );
+    await expect(readFile(join(dir, "package.json"), "utf8")).resolves.toBe(
+      `${JSON.stringify(
+        {
+          name: "my-app",
+          starterTemplate: {
+            source: "https://github.com/mugnavo/cove-monorepo",
+            revision,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+});
+
+describe("template source metadata", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("pins the download source when a revision is available", () => {
+    const templateConfig = getTemplateConfig("default");
+    const revision = "3ee0799e99d9f9fea67f430850bc7b15de32f556";
+
+    expect(resolveTemplateDownloadSource(templateConfig, revision)).toBe(
+      `github:mugnavo/cove#${revision}`,
+    );
+    expect(resolveTemplateDownloadSource(templateConfig)).toBe("github:mugnavo/cove");
+  });
+
+  it("resolves the template's main branch commit", async () => {
+    const revision = "3ee0799e99d9f9fea67f430850bc7b15de32f556";
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ sha: revision })));
+
+    await expect(resolveTemplateCommitSha(getTemplateConfig("default"))).resolves.toBe(revision);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/mugnavo/cove/commits/main",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "user-agent": "create-cove" }),
+      }),
+    );
+  });
+
+  it("omits the revision when GitHub metadata is unavailable", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+
+    await expect(resolveTemplateCommitSha(getTemplateConfig("default"))).resolves.toBeUndefined();
   });
 });
 

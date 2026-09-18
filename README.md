@@ -1,15 +1,15 @@
-# create-mugnavo
+# create-cove
 
-CLI for creating projects with Mugnavo templates.
+CLI for creating projects with the Cove Stack.
 
 ```bash
-pnpm create mugnavo
+pnpm create cove
 ```
 
 ## Templates
 
-- [`default`](https://github.com/mugnavo/tanstarter) - Minimal TanStarter template
-- [`monorepo`](https://github.com/mugnavo/tanstarter-monorepo) - TanStarter Monorepo via pnpm workspaces
+- [`default`](https://github.com/mugnavo/cove) - Minimal Cove Stack template
+- [`monorepo`](https://github.com/mugnavo/cove-monorepo) - Cove Stack Monorepo via pnpm workspaces
 
 ## License
 
