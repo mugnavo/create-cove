@@ -7,6 +7,10 @@ import { getTemplateConfig } from "./config";
 const TITLE_MARKER = "// scaffold:title";
 const DESCRIPTION_MARKER = "// scaffold:description";
 const README_DESCRIPTION_MARKER = "<!-- scaffold:description -->";
+const TEMPLATE_METADATA_COMMENTS = [
+  "// Used by the sync-template skill to track this project's",
+  "// Cove Stack source and applied template revision.",
+];
 
 type MarkerReplacement = {
   marker: string;
@@ -122,28 +126,70 @@ async function copyEnvFiles(dir: string, template: Template) {
   }
 }
 
-async function updatePackageMetadata(
-  dir: string,
-  template: Template,
-  projectName: string,
-  templateCommitSha?: string,
-) {
+async function updatePackageName(dir: string, projectName: string) {
   const packageJsonPath = join(dir, "package.json");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
     name?: string;
-    starterTemplate?: unknown;
   };
 
   packageJson.name = resolveGeneratedProjectName(dir, projectName);
+  await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
 
-  if (templateCommitSha) {
-    packageJson.starterTemplate = {
-      source: getTemplateConfig(template).homeUrl,
-      revision: templateCommitSha,
-    };
+function parseTemplateMetadata(contents: string) {
+  const json = contents
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((line) => !TEMPLATE_METADATA_COMMENTS.some((comment) => line.trim() === comment))
+    .join("\n");
+  const metadata = JSON.parse(json) as unknown;
+
+  if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
+    throw new TypeError("Template metadata must be a JSON object");
   }
 
-  await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  return metadata as Record<string, unknown>;
+}
+
+function serializeTemplateMetadata(metadata: Record<string, unknown>) {
+  const lines = JSON.stringify(metadata, null, 2).split("\n");
+  const sourceIndex = lines.findIndex((line) => line.startsWith('  "source":'));
+
+  if (sourceIndex === -1) {
+    throw new TypeError("Template metadata must contain a source");
+  }
+
+  lines.splice(sourceIndex, 0, ...TEMPLATE_METADATA_COMMENTS.map((comment) => `  ${comment}`));
+  return `${lines.join("\n")}\n`;
+}
+
+async function readTemplateMetadata(filePath: string) {
+  try {
+    return parseTemplateMetadata(await readFile(filePath, "utf8"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {};
+    }
+
+    throw error;
+  }
+}
+
+async function updateTemplateMetadata(dir: string, template: Template, templateCommitSha?: string) {
+  if (!templateCommitSha) {
+    return;
+  }
+
+  const metadataPath = join(dir, ".cove.jsonc");
+  const metadata = await readTemplateMetadata(metadataPath);
+
+  Object.assign(metadata, {
+    source: getTemplateConfig(template).homeUrl,
+    revision: templateCommitSha,
+    createdAt: new Date().toISOString(),
+  });
+
+  await writeFile(metadataPath, serializeTemplateMetadata(metadata));
 }
 
 async function updateReadme(
@@ -260,7 +306,8 @@ export async function prepareTemplateFiles(
   await Promise.allSettled([
     removeLicenseFile(dir),
     copyEnvFiles(dir, template),
-    updatePackageMetadata(dir, template, projectName, templateCommitSha),
+    updatePackageName(dir, projectName),
+    updateTemplateMetadata(dir, template, templateCommitSha),
     updateReadme(dir, template, projectName, templateCommitSha),
     updateAppMetadata(dir, template, projectName),
   ]);

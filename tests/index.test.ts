@@ -15,6 +15,18 @@ import {
 
 const tempDirs: string[] = [];
 const originalCwd = process.cwd();
+const templateMetadataComments = [
+  "// Used by the sync-template skill to track this project's",
+  "// Cove Stack source and applied template revision.",
+];
+
+function formatTemplateMetadata(metadata: Record<string, unknown>) {
+  const lines = JSON.stringify(metadata, null, 2).split("\n");
+  const sourceIndex = lines.findIndex((line) => line.startsWith('  "source":'));
+
+  lines.splice(sourceIndex, 0, ...templateMetadataComments.map((comment) => `  ${comment}`));
+  return `${lines.join("\n")}\n`;
+}
 
 async function createTempDir() {
   const dir = await mkdtemp(join(tmpdir(), "create-cove-"));
@@ -56,6 +68,7 @@ beforeEach(() => {
 
 describe("prepareTemplateFiles", () => {
   afterEach(async () => {
+    vi.useRealTimers();
     process.chdir(originalCwd);
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
@@ -166,6 +179,10 @@ describe("prepareTemplateFiles", () => {
   it("records the exact template revision when it is available", async () => {
     const dir = await createTempDir();
     const revision = "3ee0799e99d9f9fea67f430850bc7b15de32f556";
+    const createdAt = "2026-09-18T04:30:00.000Z";
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(createdAt));
 
     await mkdir(join(dir, "src", "routes"), { recursive: true });
     await writeFile(join(dir, ".env.schema"), envSchema);
@@ -186,24 +203,84 @@ describe("prepareTemplateFiles", () => {
         {
           name: "my-app",
           generator: "create-cove",
-          starterTemplate: {
-            source: "https://github.com/mugnavo/cove",
-            revision,
-          },
         },
         null,
         2,
       )}\n`,
     );
+    await expect(readFile(join(dir, ".cove.jsonc"), "utf8")).resolves.toBe(
+      formatTemplateMetadata({
+        source: "https://github.com/mugnavo/cove",
+        revision,
+        createdAt,
+      }),
+    );
+  });
+
+  it("keeps existing Cove metadata unchanged when the revision is unavailable", async () => {
+    const dir = await createTempDir();
+    const metadata = formatTemplateMetadata({
+      source: "https://github.com/mugnavo/cove",
+      customField: "preserved",
+    });
+
+    await mkdir(join(dir, "src", "routes"), { recursive: true });
+    await writeFile(join(dir, ".env.schema"), envSchema);
+    await writeFile(join(dir, ".cove.jsonc"), metadata);
+    await writeFile(join(dir, "package.json"), '{"name":"template-app"}\n');
+    await writeFile(join(dir, "README.md"), "# template-app\n");
+    await writeFile(
+      join(dir, "src", "routes", "__root.tsx"),
+      '// scaffold:title\ntitle: "template-app",\n',
+    );
+
+    await prepareTemplateFiles(dir, "default", "my-app");
+
+    await expect(readFile(join(dir, ".cove.jsonc"), "utf8")).resolves.toBe(metadata);
+  });
+
+  it("keeps invalid template metadata unchanged", async () => {
+    const dir = await createTempDir();
+    const metadata = `{\n${templateMetadataComments.map((comment) => `  ${comment}`).join("\n")}\n  "source":`;
+
+    await mkdir(join(dir, "src", "routes"), { recursive: true });
+    await writeFile(join(dir, ".env.schema"), envSchema);
+    await writeFile(join(dir, ".cove.jsonc"), metadata);
+    await writeFile(join(dir, "package.json"), '{"name":"template-app"}\n');
+    await writeFile(join(dir, "README.md"), "# template-app\n");
+    await writeFile(
+      join(dir, "src", "routes", "__root.tsx"),
+      '// scaffold:title\ntitle: "template-app",\n',
+    );
+
+    await prepareTemplateFiles(
+      dir,
+      "default",
+      "my-app",
+      "3ee0799e99d9f9fea67f430850bc7b15de32f556",
+    );
+
+    await expect(readFile(join(dir, ".cove.jsonc"), "utf8")).resolves.toBe(metadata);
   });
 
   it("creates a cleaned local env file for the monorepo web app", async () => {
     const dir = await createTempDir();
     const revision = "a60f578165b40710e2755ed757916b6ee605a919";
+    const createdAt = "2026-09-18T04:30:00.000Z";
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(createdAt));
 
     await mkdir(join(dir, "apps", "web", "src", "routes"), { recursive: true });
     await writeFile(join(dir, "apps", "web", ".env.schema"), envSchema);
     await writeFile(join(dir, "package.json"), '{"name":"template-app"}\n');
+    await writeFile(
+      join(dir, ".cove.jsonc"),
+      formatTemplateMetadata({
+        source: "https://github.com/mugnavo/cove-monorepo",
+        customField: "preserved",
+      }),
+    );
     await writeFile(join(dir, "README.md"), "# template-app\n");
     await writeFile(
       join(dir, "apps", "web", "src", "routes", "__root.tsx"),
@@ -228,17 +305,15 @@ describe("prepareTemplateFiles", () => {
       ].join("\n"),
     );
     await expect(readFile(join(dir, "package.json"), "utf8")).resolves.toBe(
-      `${JSON.stringify(
-        {
-          name: "my-app",
-          starterTemplate: {
-            source: "https://github.com/mugnavo/cove-monorepo",
-            revision,
-          },
-        },
-        null,
-        2,
-      )}\n`,
+      `${JSON.stringify({ name: "my-app" }, null, 2)}\n`,
+    );
+    await expect(readFile(join(dir, ".cove.jsonc"), "utf8")).resolves.toBe(
+      formatTemplateMetadata({
+        source: "https://github.com/mugnavo/cove-monorepo",
+        customField: "preserved",
+        revision,
+        createdAt,
+      }),
     );
   });
 });
