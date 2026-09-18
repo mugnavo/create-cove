@@ -120,7 +120,7 @@ describe("prepareTemplateFiles", () => {
       [
         "# my-app",
         "",
-        "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).",
+        "This project was scaffolded from [Cove Stack](https://github.com/mugnavo/cove) with [`create-cove`](https://github.com/mugnavo/create-cove).",
         "",
       ].join("\n"),
     );
@@ -167,7 +167,7 @@ describe("prepareTemplateFiles", () => {
       [
         `# ${directoryName}`,
         "",
-        "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).",
+        "This project was scaffolded from [Cove Stack](https://github.com/mugnavo/cove) with [`create-cove`](https://github.com/mugnavo/create-cove).",
         "",
       ].join("\n"),
     );

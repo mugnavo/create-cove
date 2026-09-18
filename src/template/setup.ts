@@ -18,64 +18,10 @@ type MarkerReplacement = {
   skipEmptyLinesAfterMarker?: boolean;
 };
 
-function getReadmeDescription(template: Template, templateCommitSha?: string) {
-  if (!templateCommitSha) {
-    return "This project was scaffolded with [`create-cove`](https://github.com/mugnavo/create-cove).";
-  }
-
+function getReadmeDescription(template: Template) {
   const templateConfig = getTemplateConfig(template);
-  const shortCommitSha = templateCommitSha.slice(0, 7);
-  const commitUrl = `${templateConfig.homeUrl}/tree/${templateCommitSha}`;
-  const compareUrl = `${templateConfig.homeUrl}/compare/${templateCommitSha}...main`;
 
-  return `This project was scaffolded with \`create-cove\` from commit [\`${shortCommitSha}\`](${commitUrl}). See the [template changelog](${compareUrl}) for newer changes.`;
-}
-
-function addCompareUrlToIssueWatchlist(
-  lines: string[],
-  template: Template,
-  templateCommitSha?: string,
-) {
-  if (!templateCommitSha) {
-    return false;
-  }
-
-  const issueWatchlistHeadingIndex = lines.findIndex(
-    (line) => line.trim() === "## Issue watchlist",
-  );
-
-  if (issueWatchlistHeadingIndex === -1) {
-    return false;
-  }
-
-  const nextSectionIndex = lines.findIndex(
-    (line, index) => index > issueWatchlistHeadingIndex && line.startsWith("## "),
-  );
-  const issueWatchlistEndIndex = nextSectionIndex === -1 ? lines.length : nextSectionIndex;
-  const templateConfig = getTemplateConfig(template);
-  const compareUrl = `${templateConfig.homeUrl}/compare/${templateCommitSha}...main`;
-
-  if (
-    lines
-      .slice(issueWatchlistHeadingIndex + 1, issueWatchlistEndIndex)
-      .some((line) => line.includes(compareUrl))
-  ) {
-    return false;
-  }
-
-  let insertIndex = issueWatchlistHeadingIndex + 1;
-
-  while (insertIndex < issueWatchlistEndIndex && lines[insertIndex]?.trim() === "") {
-    insertIndex += 1;
-  }
-
-  lines.splice(
-    insertIndex,
-    0,
-    `- [Template changelog](${compareUrl}) - Track template updates since this project was created.`,
-  );
-
-  return true;
+  return `This project was scaffolded from [Cove Stack](${templateConfig.homeUrl}) with [\`create-cove\`](https://github.com/mugnavo/create-cove).`;
 }
 
 function resolveGeneratedProjectName(dir: string, projectName: string) {
@@ -192,12 +138,7 @@ async function updateTemplateMetadata(dir: string, template: Template, templateC
   await writeFile(metadataPath, serializeTemplateMetadata(metadata));
 }
 
-async function updateReadme(
-  dir: string,
-  template: Template,
-  projectName: string,
-  templateCommitSha?: string,
-) {
+async function updateReadme(dir: string, template: Template, projectName: string) {
   const readmePath = join(dir, "README.md");
   const generatedProjectName = resolveGeneratedProjectName(dir, projectName);
   const readme = await readFile(readmePath, "utf8");
@@ -216,12 +157,10 @@ async function updateReadme(
   replaceMarkersInLines(lines, [
     {
       marker: README_DESCRIPTION_MARKER,
-      replacementContent: getReadmeDescription(template, templateCommitSha),
+      replacementContent: getReadmeDescription(template),
       skipEmptyLinesAfterMarker: true,
     },
   ]);
-
-  addCompareUrlToIssueWatchlist(lines, template, templateCommitSha);
 
   const updatedReadme = lines.join(lineBreak);
 
@@ -308,7 +247,7 @@ export async function prepareTemplateFiles(
     copyEnvFiles(dir, template),
     updatePackageName(dir, projectName),
     updateTemplateMetadata(dir, template, templateCommitSha),
-    updateReadme(dir, template, projectName, templateCommitSha),
+    updateReadme(dir, template, projectName),
     updateAppMetadata(dir, template, projectName),
   ]);
 }
