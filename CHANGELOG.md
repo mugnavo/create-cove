@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/mugnavo/create-cove/compare/v1.0.0...v1.1.0) (2026-09-18)
+
+
+### Features
+
+* rename to create-cove and record template provenance ([#2](https://github.com/mugnavo/create-cove/issues/2)) ([cc380a3](https://github.com/mugnavo/create-cove/commit/cc380a36a844315fd5ba899eb4f30c3f0bcd846a))
+
 ## [1.0.0](https://github.com/mugnavo/create-cove/compare/v0.6.1...v1.0.0) (2026-09-06)
 
 
