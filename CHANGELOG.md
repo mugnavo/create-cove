@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/mugnavo/create-cove/compare/v1.1.0...v1.2.0) (2026-09-18)
+
+
+### Features
+
+* write template metadata to .cove.jsonc instead of package.json ([324aabb](https://github.com/mugnavo/create-cove/commit/324aabb7501001b6901b2a4553a016fc73d5110f))
+
 ## [1.1.0](https://github.com/mugnavo/create-cove/compare/v1.0.0...v1.1.0) (2026-09-18)
 
 
