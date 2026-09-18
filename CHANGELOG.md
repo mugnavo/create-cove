@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/mugnavo/create-cove/compare/v1.2.0...v1.3.0) (2026-09-18)
+
+
+### Features
+
+* customize database defaults during scaffolding ([0b9ecf8](https://github.com/mugnavo/create-cove/commit/0b9ecf84001be469a8b2606943492b5ad9a8175b))
+
+
+### Bug Fixes
+
+* simplify generated template provenance links ([74a3cc8](https://github.com/mugnavo/create-cove/commit/74a3cc870ac9827f593738dc11bdda2258069190))
+
 ## [1.2.0](https://github.com/mugnavo/create-cove/compare/v1.1.0...v1.2.0) (2026-09-18)
 
 
