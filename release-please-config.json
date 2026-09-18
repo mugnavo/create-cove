@@ -3,7 +3,7 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "create-mugnavo",
+      "package-name": "create-cove",
       "include-component-in-tag": false,
       "include-v-in-tag": true
     }

@@ -129,11 +129,11 @@ async function promptTemplate() {
   const template = await p.select({
     message: "Select a template:",
     options: [
-      { value: "default", label: "Default", hint: "minimal TanStarter template" },
+      { value: "default", label: "Default", hint: "minimal Cove Stack template" },
       {
         value: "monorepo",
         label: "Monorepo",
-        hint: "TanStarter via pnpm workspaces",
+        hint: "Cove Stack via pnpm workspaces",
       },
     ],
   });

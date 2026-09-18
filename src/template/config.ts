@@ -7,12 +7,12 @@ export interface TemplateConfig {
 
 const TEMPLATE_CONFIG: Record<Template, TemplateConfig> = {
   default: {
-    source: "github:mugnavo/tanstarter",
-    homeUrl: "https://github.com/mugnavo/tanstarter",
+    source: "github:mugnavo/cove",
+    homeUrl: "https://github.com/mugnavo/cove",
   },
   monorepo: {
-    source: "github:mugnavo/tanstarter-monorepo",
-    homeUrl: "https://github.com/mugnavo/tanstarter-monorepo",
+    source: "github:mugnavo/cove-monorepo",
+    homeUrl: "https://github.com/mugnavo/cove-monorepo",
   },
 };
 

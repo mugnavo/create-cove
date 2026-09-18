@@ -4,6 +4,15 @@ function resolveRepositoryName(homeUrl: string) {
   return new URL(homeUrl).pathname.replace(/^\/|\/$/g, "");
 }
 
+export function resolveTemplateDownloadSource(
+  templateConfig: TemplateConfig,
+  templateCommitSha?: string,
+) {
+  return templateCommitSha
+    ? `${templateConfig.source}#${templateCommitSha}`
+    : templateConfig.source;
+}
+
 export async function resolveTemplateCommitSha(
   templateConfig: TemplateConfig,
 ): Promise<string | undefined> {
@@ -12,7 +21,7 @@ export async function resolveTemplateCommitSha(
     const response = await fetch(`https://api.github.com/repos/${repository}/commits/main`, {
       headers: {
         accept: "application/vnd.github+json",
-        "user-agent": "create-mugnavo",
+        "user-agent": "create-cove",
       },
       signal: AbortSignal.timeout(5000),
     });

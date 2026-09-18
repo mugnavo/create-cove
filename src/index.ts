@@ -8,7 +8,10 @@ import { getDevCommand, initGitRepo, installDependencies } from "./cli/package-m
 import { resolveCliOptions } from "./cli/prompts";
 import { getTemplateConfig } from "./template/config";
 import { prepareTemplateFiles } from "./template/setup";
-import { resolveTemplateCommitSha } from "./template/source-metadata";
+import {
+  resolveTemplateCommitSha,
+  resolveTemplateDownloadSource,
+} from "./template/source-metadata";
 
 function getNextSteps(
   projectName: string,
@@ -33,9 +36,9 @@ function getNextSteps(
 
 const main = defineCommand({
   meta: {
-    name: "create-mugnavo",
+    name: "create-cove",
     version: packageJson.version,
-    description: "Create a project using Mugnavo templates.",
+    description: "Create a project with Cove Stack.",
   },
   args: cliArgs,
   async run({ args }) {
@@ -47,17 +50,19 @@ const main = defineCommand({
 
     const spinner = p.spinner();
     try {
+      spinner.start("Resolving template...");
       const templateConfig = getTemplateConfig(template);
-      const templateCommitShaPromise = resolveTemplateCommitSha(templateConfig);
+      const templateCommitSha = await resolveTemplateCommitSha(templateConfig);
+      const templateSource = resolveTemplateDownloadSource(templateConfig, templateCommitSha);
 
-      spinner.start("Cloning project...");
-      const { dir, source } = await downloadTemplate(templateConfig.source, {
+      spinner.message("Cloning project...");
+      const { dir, source } = await downloadTemplate(templateSource, {
         dir: projectName,
         force: true,
         forceClean: true,
       });
 
-      await prepareTemplateFiles(dir, template, projectName, await templateCommitShaPromise);
+      await prepareTemplateFiles(dir, template, projectName, templateCommitSha);
 
       const finalPackageManager = selectedPackageManager || preferredPackageManager;
       spinner.stop(`Project cloned from ${source}`);
@@ -82,9 +87,9 @@ const main = defineCommand({
       p.outro(`All set. Happy coding! 🚀`);
     } catch (error) {
       spinner.stop();
-      p.outro("Failed to download template. Please try again later.");
       console.error(error);
-      return;
+      p.outro("Failed to create project. Please try again.");
+      process.exitCode = 1;
     }
   },
 });
