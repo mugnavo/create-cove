@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/mugnavo/create-cove/compare/v1.3.0...v1.4.0) (2026-10-02)
+
+
+### Features
+
+* generate auth secrets and align database defaults during scaffolding ([54d2ac1](https://github.com/mugnavo/create-cove/commit/54d2ac13e2b7c2a128014e5b32c90c927ea09896))
+
 ## [1.3.0](https://github.com/mugnavo/create-cove/compare/v1.2.0...v1.3.0) (2026-09-18)
 
 
