@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 
@@ -59,17 +60,33 @@ function createLocalEnvFile(schema: string) {
     }
   }
 
-  return lines.filter((line) => !line.trim().startsWith("# @")).join(lineBreak);
+  return lines
+    .filter((line) => !line.trim().startsWith("# @"))
+    .map((line) =>
+      line.startsWith("BETTER_AUTH_SECRET=")
+        ? `BETTER_AUTH_SECRET=${randomBytes(32).toString("base64")}`
+        : line,
+    )
+    .join(lineBreak);
 }
 
-async function copyEnvFile(schemaPath: string, localEnvPath: string) {
+async function copyEnvFile(schemaPath: string, localEnvPath: string, databaseName: string) {
   const schema = await readFile(schemaPath, "utf8");
-  await writeFile(localEnvPath, createLocalEnvFile(schema), { flag: "wx" });
+  const updatedSchema = schema.replaceAll("localhost:5432/cove", `localhost:5432/${databaseName}`);
+
+  // Keep the schema read and write in one task to avoid reading during a concurrent write.
+  if (updatedSchema !== schema) {
+    await writeFile(schemaPath, updatedSchema);
+  }
+
+  await writeFile(localEnvPath, createLocalEnvFile(updatedSchema), { flag: "wx" });
 }
 
-async function copyEnvFiles(dir: string, template: Template) {
+async function copyEnvFiles(dir: string, template: Template, projectName: string) {
+  const databaseName = resolveDatabaseName(dir, projectName);
+
   if (template === "default") {
-    await copyEnvFile(join(dir, ".env.schema"), join(dir, ".env.local"));
+    await copyEnvFile(join(dir, ".env.schema"), join(dir, ".env.local"), databaseName);
     return;
   }
 
@@ -77,6 +94,7 @@ async function copyEnvFiles(dir: string, template: Template) {
     await copyEnvFile(
       join(dir, "apps", "web", ".env.schema"),
       join(dir, "apps", "web", ".env.local"),
+      databaseName,
     );
     return;
   }
@@ -115,9 +133,6 @@ async function updateDatabaseDefaults(dir: string, template: Template, projectNa
     replaceText(join(dir, "docker-compose.yml"), [
       ["postgres_data_cove", `postgres_data_${databaseName}`],
       ["POSTGRES_DB=cove", `POSTGRES_DB=${databaseName}`],
-    ]),
-    replaceText(join(appDir, ".env.schema"), [
-      ["localhost:5432/cove", `localhost:5432/${databaseName}`],
     ]),
     replaceText(join(appDir, "playwright.config.ts"), [
       ["localhost:5432/cove_e2e", `localhost:5432/${databaseName}_e2e`],
@@ -287,7 +302,7 @@ export async function prepareTemplateFiles(
 ) {
   await Promise.allSettled([
     removeLicenseFile(dir),
-    copyEnvFiles(dir, template),
+    copyEnvFiles(dir, template, projectName),
     updatePackageName(dir, projectName),
     updateDatabaseDefaults(dir, template, projectName),
     updateTemplateMetadata(dir, template, templateCommitSha),

@@ -58,7 +58,7 @@ const envSchema = [
   "PUBLIC_APP_URL=http://localhost:3000",
   "",
   "# @sensitive",
-  "DATABASE_URL=",
+  "DATABASE_URL=postgresql://postgres:password@localhost:5432/cove",
   "",
 ].join("\n");
 
@@ -111,7 +111,7 @@ describe("prepareTemplateFiles", () => {
         "# Public origin used by the browser.",
         "PUBLIC_APP_URL=http://localhost:3000",
         "",
-        "DATABASE_URL=",
+        "DATABASE_URL=postgresql://postgres:password@localhost:5432/my_app",
         "",
       ].join("\n"),
     );
@@ -300,7 +300,7 @@ describe("prepareTemplateFiles", () => {
         "# Public origin used by the browser.",
         "PUBLIC_APP_URL=http://localhost:3000",
         "",
-        "DATABASE_URL=",
+        "DATABASE_URL=postgresql://postgres:password@localhost:5432/my_app",
         "",
       ].join("\n"),
     );
@@ -316,6 +316,36 @@ describe("prepareTemplateFiles", () => {
       }),
     );
   });
+
+  it.each(["default", "monorepo"] as const)(
+    "generates a fresh auth secret only in the $0 template's local env file",
+    async (template) => {
+      const schema = "# @required @sensitive\r\nBETTER_AUTH_SECRET=\r\n";
+      const secrets: string[] = [];
+
+      for (let index = 0; index < 2; index += 1) {
+        const dir = await createTempDir();
+        const appDir = template === "default" ? dir : join(dir, "apps", "web");
+        await mkdir(appDir, { recursive: true });
+        await writeFile(join(appDir, ".env.schema"), schema);
+
+        await prepareTemplateFiles(dir, template, "my-app");
+
+        const localEnv = await readFile(join(appDir, ".env.local"), "utf8");
+        expect(localEnv).toMatch(/^BETTER_AUTH_SECRET=[A-Za-z0-9+/]{43}=\r\n$/);
+        const secret = localEnv.slice("BETTER_AUTH_SECRET=".length).trim();
+        expect(Buffer.from(secret, "base64")).toHaveLength(32);
+        secrets.push(secret);
+        await expect(readFile(join(appDir, ".env.schema"), "utf8")).resolves.toBe(schema);
+
+        // Running preparation again must not rotate an existing local secret.
+        await prepareTemplateFiles(dir, template, "my-app");
+        await expect(readFile(join(appDir, ".env.local"), "utf8")).resolves.toBe(localEnv);
+      }
+
+      expect(secrets[0]).not.toBe(secrets[1]);
+    },
+  );
 
   it.each([
     {
@@ -333,7 +363,7 @@ describe("prepareTemplateFiles", () => {
     await mkdir(join(appDir, "src", "routes"), { recursive: true });
     await writeFile(
       join(appDir, ".env.schema"),
-      '# @example="postgresql://postgres:password@localhost:5432/cove"\nDATABASE_URL=\n',
+      "DATABASE_URL=postgresql://postgres:password@localhost:5432/cove\n",
     );
     await writeFile(
       join(appDir, "playwright.config.ts"),
@@ -357,6 +387,9 @@ describe("prepareTemplateFiles", () => {
     );
     await expect(readFile(join(appDir, ".env.schema"), "utf8")).resolves.toContain(
       "localhost:5432/my_cool_app",
+    );
+    await expect(readFile(join(appDir, ".env.local"), "utf8")).resolves.toBe(
+      "DATABASE_URL=postgresql://postgres:password@localhost:5432/my_cool_app\n",
     );
     await expect(readFile(join(appDir, "playwright.config.ts"), "utf8")).resolves.toContain(
       "localhost:5432/my_cool_app_e2e",
